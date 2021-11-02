@@ -1,3 +1,7 @@
+# Data for lab 1
+*reviews.json
+*sent_lexicon
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
