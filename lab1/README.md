@@ -10,7 +10,7 @@
 3. Install relevant packages
    ```bash
    conda install --file env.yaml
-   conda install numpy matplotlib jupyter jupyterlab ipdb tqdm natsort
+   conda install numpy matplotlib jupyter jupyterlab ipdb tqdm natsort pandas
    conda install nltk
    conda install scikit-learn
    ```
