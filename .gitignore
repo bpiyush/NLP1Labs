@@ -1,3 +1,8 @@
+# checkpoints/models
+*.pt
+*glove*.txt
+*word2vec*.txt
+
 # Data for lab 2
 *.zip
 **/trees/*

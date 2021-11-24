@@ -31,7 +31,9 @@ def plot_single_categorical_histogram(
     ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
-    ax.legend()
+
+    if bar_label is not None:
+        ax.legend()
     
     if show and ax is None:
         plt.show()
@@ -65,5 +67,12 @@ def plot_multiple_categorical_histogram(
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.legend()
-    
+
     plt.show()
+
+
+def load_txt(path: str):
+    """Loads data from text file."""
+    with open(path, "r") as f:
+        data = f.read()
+    return data.split("\n")
