@@ -1,3 +1,7 @@
+# Data for lab 2
+*.zip
+**/trees/*
+
 # Data for lab 1
 *reviews.json
 *sent_lexicon
