@@ -74,7 +74,7 @@ def plot_multiple_categorical_histogram(
 
 def plot_single_sequence(
         x, y, plot_label, x_label="Iterations", y_label="Loss", title=None,
-        save=True, save_path="./results/sample.png", show=True,
+        marker="--o", save=True, save_path="./results/sample.png", show=True,
     ):
     """Plots sequences y1 and y1 vs x."""
     fig, ax = plt.subplots(1, 1, figsize=(10, 5))
@@ -87,7 +87,7 @@ def plot_single_sequence(
         raise NotImplementedError
 
     plot_label = f"{plot_label} (Best: {optima_fn(y):.4f})"
-    ax.plot(x, y, "--o", label=plot_label)
+    ax.plot(x, y, marker, label=plot_label)
 
     ax.grid()
     if title is None:
