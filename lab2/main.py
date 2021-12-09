@@ -1,6 +1,7 @@
 """Entrypoint to training and evaluation."""
 import os
 from collections import defaultdict
+from copy import deepcopy
 import numpy as np
 import torch
 from torch import optim
@@ -29,7 +30,14 @@ def run_experiment(
         expt_name="",
     ):
     """Runs a single experiment for given model on the SST dataset."""
-    configs = locals()
+    configs = {
+        "model_args": deepcopy(model_args),
+        "train_args": deepcopy(train_args),
+        "optim_args": deepcopy(optim_args),
+        "seed": seed,
+        "use_pretrained_embeddings": use_pretrained_embeddings,
+        "pretrained_embeddings_path": pretrained_embeddings_path,
+    }
     
     # 0. fix seed and select device
     fix_seed(seed)
@@ -135,6 +143,13 @@ def run_experiment(
     torch.save(ckpt, ckpt_path)
     
     logs_path = os.path.join("logs", f"{expt_name}-train_logs.json")
+    # remove problematic keys from configs
+    if "batch_fn" in configs["train_args"]:
+        del configs["train_args"]["batch_fn"]
+    if "eval_fn" in configs["train_args"]:
+        del configs["train_args"]["eval_fn"]
+    if "prep_fn" in configs["train_args"]:
+        del configs["train_args"]["prep_fn"]
     logs = {
         "model_name": model_name,
         "losses": losses,
