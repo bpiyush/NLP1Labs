@@ -1,5 +1,6 @@
 # checkpoints/models
 *.pt
+*.ckpt
 *glove*.txt
 *word2vec*.txt
 
