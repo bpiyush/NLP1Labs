@@ -2,6 +2,7 @@
 import os
 from collections import defaultdict
 from copy import deepcopy
+from posixpath import basename
 import numpy as np
 import torch
 from torch import optim
@@ -13,7 +14,71 @@ from utils.plot import plot_single_sequence
 
 import models
 
-from train import fix_seed, train_model
+from train import fix_seed, train_model, custom_evaluate
+
+
+def setup_data(
+    use_pretrained_embeddings,
+    pretrained_embeddings_path,
+    train_path="trees/train.txt",
+    dev_path="trees/dev.txt",
+    test_path="trees/test.txt",
+    lower=False,
+):
+    train_data = list(examplereader(train_path, lower=lower))
+    dev_data = list(examplereader(dev_path, lower=lower))
+    test_data = list(examplereader(test_path, lower=lower))
+
+    print("::: Configuring data :::")
+    print("Train: \t", len(train_data))
+    print("Dev: \t", len(dev_data))
+    print("Test:\t", len(test_data))
+
+    # Now let's map the sentiment labels 0-4 to a more readable form
+    i2t = ["very negative", "negative", "neutral", "positive", "very positive"]
+    t2i = OrderedDict({p : i for p, i in zip(i2t, range(len(i2t)))})
+
+    # 2. create vocabularies
+    if not use_pretrained_embeddings:
+        print("::: Using training dataset to create vocabulary. :::")
+        # use the standard vocabularies constructed from the training data
+        v = Vocabulary()
+        for data_set in (train_data,):
+            for ex in data_set:
+                for token in ex.tokens:
+                    v.count_token(token)
+
+        v.build()
+        print("Vocabulary size:", len(v.w2i))
+    else:
+        print("::: Using word-embeddings to create vocabulary. :::")
+        word_embeddings_txt = load_txt(pretrained_embeddings_path)
+        v = Vocabulary()
+        vectors = []
+        for line in word_embeddings_txt[:-1]:
+            token, vector = line.split(" ")[0], line.split(" ")[1:]
+            vector = np.array([float(y) for y in vector])
+            vectors.append(vector)
+            v.count_token(token)
+
+        v.build()
+        vectors = np.stack(vectors, axis=0)
+
+        # add zero-vectors for <unk> and <pad>
+        vectors = np.concatenate([np.zeros((2, 300)), vectors], axis=0)
+
+        print("Vocabulary size:", len(v.w2i), "\t Vectors shape: ", vectors.shape)
+    
+    return train_data, dev_data, test_data, v, t2i, i2t
+
+
+def setup_model(model_name, model_args, v):
+    add_model_args = {
+        "vocab_size": len(v.w2i),
+        "vocab": v,
+    }
+    model = models.__dict__[model_name](**model_args, **add_model_args)
+    return model
 
 
 def run_experiment(
@@ -182,3 +247,42 @@ def run_multiple_seed_experiments(expt_args, seeds=[0, 42, 420]):
     save_json(best_agg_acc, logs_path)
 
     return best_agg_acc
+
+
+def eval_experiment(
+        model_name,
+        model_args,
+        eval_args,
+        ckpt_path,
+        seed=42,
+        use_pretrained_embeddings=False,
+        pretrained_embeddings_path="./googlenews.word2vec.300d.txt",
+        expt_name="",  
+    ):
+    """Evaluates a trained model on a test set."""
+    fix_seed(seed)
+
+    # load data
+    train_data, dev_data, test_data, v, t2i, i2t = setup_data(
+        use_pretrained_embeddings=use_pretrained_embeddings,
+        pretrained_embeddings_path=pretrained_embeddings_path,
+    )
+
+    # load model
+    model = setup_model(model_name, model_args, v=v)
+    ckpt = torch.load(ckpt_path)
+    model.load_state_dict(ckpt["state_dict"])
+    
+    # run forward pass
+    results = custom_evaluate(
+        model, test_data, **eval_args,
+    )
+    
+    # save results
+    if not len(expt_name):
+        expt_name = f"{os.path.basename(ckpt_path).split('.ckpt')[0]}"
+    results_path = os.path.join("results", f"{expt_name}-results.pt")
+    os.makedirs(os.path.dirname(results_path), exist_ok=True)
+    torch.save(results, results_path)
+    print(f"::: Saved results at {results_path} :::")
+    

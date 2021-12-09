@@ -1,6 +1,7 @@
 """Defines the training and evaluation routines."""
 import time
 import random
+from collections import defaultdict
 import numpy as np
 import torch
 from torch import nn
@@ -146,6 +147,28 @@ def evaluate(model, data,
         total += targets.size(0)
 
     return correct, total, correct / float(total)
+
+
+def custom_evaluate(model, data, batch_fn=get_minibatch, prep_fn=prepare_minibatch, batch_size=16):
+    """Evaluates model on data and saved *all* logs."""
+    model.eval()  # disable dropout
+
+    results = defaultdict(list)
+
+    for mb in batch_fn(data, batch_size=batch_size, shuffle=False):
+        x, targets = prep_fn(mb, model.vocab)
+        with torch.no_grad():
+            logits = model(x)
+        predictions = logits.argmax(dim=-1).view(-1)
+
+        results["example"].extend(mb)
+        results["prediction"].append(predictions.numpy())
+        results["target"].append(targets.numpy())
+    
+    results["prediction"] = np.concatenate(results["prediction"])
+    results["target"] = np.concatenate(results["target"])
+
+    return results
 
 
 def prepare_treelstm_minibatch(mb, vocab):
