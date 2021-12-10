@@ -3,6 +3,7 @@
 *.ckpt
 *glove*.txt
 *word2vec*.txt
+.DS_Store
 
 # Data for lab 2
 *.zip

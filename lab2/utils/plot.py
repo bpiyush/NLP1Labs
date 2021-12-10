@@ -15,6 +15,12 @@ def plot_single_categorical_histogram(
         ylabel="Counts",
         bar_label=None,
         show=True,
+        save=False,
+        save_path="./results/sample.png",
+        titlesize=30,
+        labelsize=20,
+        tickssize=15,
+        color=None,
     ):
     """Plots bar-plot."""
 
@@ -27,15 +33,21 @@ def plot_single_categorical_histogram(
     if ax is None:
         _, ax = plt.subplots(1, 1, figsize=figsize)
 
-    ax.bar(x=x, height=counts, width=0.5, label=bar_label, align="center")
+    ax.bar(x=x, height=counts, width=0.5, label=bar_label, align="center", color=color)
     ax.grid()
-    ax.set_title(title)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
+    ax.set_title(title, fontsize=titlesize)
+    ax.set_xlabel(xlabel, fontsize=labelsize)
+    ax.set_ylabel(ylabel, fontsize=labelsize)
+    ax.tick_params(axis="x", labelsize=tickssize)
+    ax.tick_params(axis="y", labelsize=tickssize)
 
     if bar_label is not None:
-        ax.legend()
-    
+        ax.legend(fontsize=labelsize)
+
+    if save:
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        plt.savefig(save_path, bbox_inches="tight")
+
     if show and ax is None:
         plt.show()
 
@@ -48,6 +60,11 @@ def plot_multiple_categorical_histogram(
         title="Categorical distribution",
         xlabel="Classes",
         ylabel="Counts",
+        save=False,
+        save_path="./results/sample.png",
+        titlesize=30,
+        labelsize=20,
+        tickssize=15,
     ):
     """Plots bar-plot."""
     assert len(lists_of_values) == len(labels)
@@ -64,10 +81,16 @@ def plot_multiple_categorical_histogram(
         ax.bar(x=x - center_points[i], height=counts, label=labels[i], width=width_per_dist, align="center")
 
     ax.grid()
-    ax.set_title(title)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    ax.legend()
+    ax.set_title(title, fontsize=titlesize)
+    ax.set_xlabel(xlabel, fontsize=labelsize)
+    ax.set_ylabel(ylabel, fontsize=labelsize)
+    ax.tick_params(axis="x", labelsize=tickssize)
+    ax.tick_params(axis="y", labelsize=tickssize)
+    ax.legend(fontsize=labelsize)
+
+    if save:
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        plt.savefig(save_path, bbox_inches="tight")
 
     plt.show()
 
