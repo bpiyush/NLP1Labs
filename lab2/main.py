@@ -11,10 +11,44 @@ from data.example import Example, examplereader
 from data.vocabulary import OrderedDict, Vocabulary
 from utils.io import load_txt, save_json
 from utils.plot import plot_single_sequence
+from utils.text import tokens_from_treestring, transitions_from_treestring
 
 import models
 
 from train import fix_seed, train_model, custom_evaluate
+
+
+def collect_all_subtrees(data, use_head_label=True):
+    data_subexamples = []
+    data_idtracker = []
+
+    for i, example in enumerate(data):
+
+        subexamples = []
+        idtracker = []
+        subtrees = [subtree for subtree in example.tree.subtrees()]
+
+        for subtree in subtrees:
+            subtree_string = ' '.join(str(subtree).split())
+
+            if use_head_label:
+                label = example.label
+            else:
+                label = int(subtree_string[1])
+
+            subexample = Example(
+                tokens=tokens_from_treestring(subtree_string),
+                transitions=transitions_from_treestring(subtree_string),
+                label=label,
+                tree=subtree,
+            )
+            subexamples.append(subexample)
+            idtracker.append(i)
+
+        data_subexamples.extend(subexamples)
+        data_idtracker.extend(idtracker)
+    
+    return data_subexamples, data_idtracker
 
 
 def setup_data(
@@ -24,8 +58,15 @@ def setup_data(
     dev_path="trees/dev.txt",
     test_path="trees/test.txt",
     lower=False,
+    use_subtrees=False,
 ):
     train_data = list(examplereader(train_path, lower=lower))
+    if use_subtrees:
+        print(".... Using supervision from subtrees ....")
+        print(f"Training data size (before): {len(train_data)}")
+        train_data, _ = collect_all_subtrees(train_data, use_head_label=False)
+        print(f"Training data size (after): {len(train_data)}")
+
     dev_data = list(examplereader(dev_path, lower=lower))
     test_data = list(examplereader(test_path, lower=lower))
 
@@ -69,7 +110,7 @@ def setup_data(
 
         print("Vocabulary size:", len(v.w2i), "\t Vectors shape: ", vectors.shape)
     
-    return train_data, dev_data, test_data, v, t2i, i2t
+    return train_data, dev_data, test_data, v, t2i, i2t, vectors
 
 
 def setup_model(model_name, model_args, v):
@@ -93,6 +134,7 @@ def run_experiment(
         plot_accuracies=True,
         verbose=True,
         expt_name="",
+        use_subtrees=False,
     ):
     """Runs a single experiment for given model on the SST dataset."""
     configs = {
@@ -108,59 +150,65 @@ def run_experiment(
     fix_seed(seed)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    # 1. load data
-    LOWER = False  # we will keep the original casing
-    train_data = list(examplereader("trees/train.txt", lower=LOWER))
-    dev_data = list(examplereader("trees/dev.txt", lower=LOWER))
-    test_data = list(examplereader("trees/test.txt", lower=LOWER))
+    # # 1. load data
+    # LOWER = False  # we will keep the original casing
+    # train_data = list(examplereader("trees/train.txt", lower=LOWER))
+    # dev_data = list(examplereader("trees/dev.txt", lower=LOWER))
+    # test_data = list(examplereader("trees/test.txt", lower=LOWER))
 
-    print("::: Configuring data :::")
-    print("Train: \t", len(train_data))
-    print("Dev: \t", len(dev_data))
-    print("Test:\t", len(test_data))
+    # print("::: Configuring data :::")
+    # print("Train: \t", len(train_data))
+    # print("Dev: \t", len(dev_data))
+    # print("Test:\t", len(test_data))
 
-    # Now let's map the sentiment labels 0-4 to a more readable form
-    i2t = ["very negative", "negative", "neutral", "positive", "very positive"]
-    t2i = OrderedDict({p : i for p, i in zip(i2t, range(len(i2t)))})
+    # # Now let's map the sentiment labels 0-4 to a more readable form
+    # i2t = ["very negative", "negative", "neutral", "positive", "very positive"]
+    # t2i = OrderedDict({p : i for p, i in zip(i2t, range(len(i2t)))})
 
-    # 2. create vocabularies
-    if not use_pretrained_embeddings:
-        print("::: Using training dataset to create vocabulary. :::")
-        # use the standard vocabularies constructed from the training data
-        v = Vocabulary()
-        for data_set in (train_data,):
-            for ex in data_set:
-                for token in ex.tokens:
-                    v.count_token(token)
+    # # 2. create vocabularies
+    # if not use_pretrained_embeddings:
+    #     print("::: Using training dataset to create vocabulary. :::")
+    #     # use the standard vocabularies constructed from the training data
+    #     v = Vocabulary()
+    #     for data_set in (train_data,):
+    #         for ex in data_set:
+    #             for token in ex.tokens:
+    #                 v.count_token(token)
 
-        v.build()
-        print("Vocabulary size:", len(v.w2i))
-    else:
-        print("::: Using word-embeddings to create vocabulary. :::")
-        word_embeddings_txt = load_txt(pretrained_embeddings_path)
-        v = Vocabulary()
-        vectors = []
-        for line in word_embeddings_txt[:-1]:
-            token, vector = line.split(" ")[0], line.split(" ")[1:]
-            vector = np.array([float(y) for y in vector])
-            vectors.append(vector)
-            v.count_token(token)
+    #     v.build()
+    #     print("Vocabulary size:", len(v.w2i))
+    # else:
+    #     print("::: Using word-embeddings to create vocabulary. :::")
+    #     word_embeddings_txt = load_txt(pretrained_embeddings_path)
+    #     v = Vocabulary()
+    #     vectors = []
+    #     for line in word_embeddings_txt[:-1]:
+    #         token, vector = line.split(" ")[0], line.split(" ")[1:]
+    #         vector = np.array([float(y) for y in vector])
+    #         vectors.append(vector)
+    #         v.count_token(token)
 
-        v.build()
-        vectors = np.stack(vectors, axis=0)
+    #     v.build()
+    #     vectors = np.stack(vectors, axis=0)
 
-        # add zero-vectors for <unk> and <pad>
-        vectors = np.concatenate([np.zeros((2, 300)), vectors], axis=0)
+    #     # add zero-vectors for <unk> and <pad>
+    #     vectors = np.concatenate([np.zeros((2, 300)), vectors], axis=0)
 
-        print("Vocabulary size:", len(v.w2i), "\t Vectors shape: ", vectors.shape)
-    
+    #     print("Vocabulary size:", len(v.w2i), "\t Vectors shape: ", vectors.shape)
+
+    train_data, dev_data, test_data, v, t2i, i2t, vectors = setup_data(
+        use_pretrained_embeddings=use_pretrained_embeddings,
+        pretrained_embeddings_path=pretrained_embeddings_path,
+        use_subtrees=use_subtrees,
+    )    
     
     print("::: Configuring model :::")
-    add_model_args = {
-        "vocab_size": len(v.w2i),
-        "vocab": v,
-    }
-    model = models.__dict__[model_name](**model_args, **add_model_args)
+    # add_model_args = {
+    #     "vocab_size": len(v.w2i),
+    #     "vocab": v,
+    # }
+    # model = models.__dict__[model_name](**model_args, **add_model_args)
+    model = setup_model(model_name, model_args, v)
     
     if use_pretrained_embeddings:
         assert hasattr(model, "init_embedding_weights")
@@ -231,9 +279,15 @@ def run_experiment(
 def run_multiple_seed_experiments(expt_args, seeds=[0, 42, 420]):
     """Runs multiple experiments with different seeds."""
     best_agg_acc = defaultdict(list)
+    expt_name_prefix = expt_args["expt_name"]
     for seed in seeds:
         print(f":::::::::::::::::::::::: Seed : {seed} ::::::::::::::::::::::::")
-        expt_args.update({"seed": seed})
+        expt_args.update(
+            {
+                "seed": seed,
+                "expt_name": f"{expt_name_prefix}-{expt_args['model_name']}_seed_{seed}",
+            },
+        )
         _, _, best_model_acc = run_experiment(**expt_args)
         for phase in best_model_acc:
             best_agg_acc[phase].append(best_model_acc[phase])
