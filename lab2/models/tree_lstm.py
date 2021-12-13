@@ -29,12 +29,15 @@ def unbatch(state):
     return torch.split(torch.cat(state, 1), 1, 0)
 
 
-class TreeLSTMCell(nn.Module):
+
+
+
+class BinaryTreeLSTMCell(nn.Module):
     """A Binary Tree LSTM cell"""
 
     def __init__(self, input_size, hidden_size, bias=True):
         """Creates the weights for this LSTM"""
-        super(TreeLSTMCell, self).__init__()
+        super(BinaryTreeLSTMCell, self).__init__()
 
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -95,17 +98,84 @@ class TreeLSTMCell(nn.Module):
             self.__class__.__name__, self.input_size, self.hidden_size)
 
 
+class ChildSumTreeLSTMCell(nn.Module):
+    """A child-sum Tree LSTM cell"""
+
+    def __init__(self, input_size, hidden_size, bias=True):
+        """Creates the weights for this LSTM"""
+        super(ChildSumTreeLSTMCell, self).__init__()
+
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.bias = bias
+
+        self.dropout_layer = nn.Dropout(p=0.25)
+
+        self.project_layer = nn.Linear(hidden_size, 3 * hidden_size)
+        self.forget_layer = nn.Linear(hidden_size, hidden_size)
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        """This is PyTorch's default initialization method"""
+        stdv = 1.0 / math.sqrt(self.hidden_size)
+        for weight in self.parameters():
+            weight.data.uniform_(-stdv, stdv)
+    
+
+    def forward(self, hx_l, hx_r, mask=None):
+        """
+        hx_l is ((batch, hidden_size), (batch, hidden_size))
+        hx_r is ((batch, hidden_size), (batch, hidden_size))    
+        """
+        prev_h_l, prev_c_l = hx_l
+        prev_h_r, prev_c_r = hx_r
+
+        B = prev_h_l.size(0)
+
+        # sum the children
+        
+
+        # all projections except the forget gate work on the sum of the children
+        h_j = prev_h_l + prev_h_r
+
+
+        # get forget gate values for each children
+        f_l, f_r = self.forget_layer(prev_h_l), self.forget_layer(prev_h_r)
+
+        # get other gates using the sum of children outputs
+        proj = self.project_layer(h_j)
+        i, g, o = torch.chunk(proj, 3, dim=-1)
+
+        i = i.sigmoid()
+        f_l = f_l.sigmoid()
+        f_r = f_r.sigmoid()
+        g = g.tanh()
+        o = o.sigmoid()
+
+        c = i * g + (f_l * prev_c_l) + (f_r * prev_c_r)
+        h = o * nn.functional.tanh(c)
+
+        return h, c
+
+
+
+
 class TreeLSTM(nn.Module):
     """Encodes a sentence using a TreeLSTMCell"""
 
-    def __init__(self, input_size, hidden_size, bias=True):
+    def __init__(self, input_size, hidden_size, bias=True, lstm_type='binary'):
         """Creates the weights for this LSTM"""
         super(TreeLSTM, self).__init__()
 
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.bias = bias
-        self.reduce = TreeLSTMCell(input_size, hidden_size)
+
+        if lstm_type == 'binary':
+            self.reduce = BinaryTreeLSTMCell(input_size, hidden_size)
+        elif lstm_type == 'sum':
+            self.reduce = ChildSumTreeLSTMCell(input_size, hidden_size)
 
         # project word to initial c
         self.proj_x = nn.Linear(input_size, hidden_size)
@@ -179,12 +249,12 @@ class TreeLSTM(nn.Module):
 class TreeLSTMClassifier(nn.Module):
     """Encodes sentence with a TreeLSTM and projects final hidden state"""
 
-    def __init__(self, vocab_size, embedding_dim, hidden_dim, output_dim, vocab):
+    def __init__(self, vocab_size, embedding_dim, hidden_dim, output_dim, vocab, lstm_type='binary'):
         super(TreeLSTMClassifier, self).__init__()
         self.vocab = vocab
         self.hidden_dim = hidden_dim
         self.embed = nn.Embedding(vocab_size, embedding_dim, padding_idx=1)
-        self.treelstm = TreeLSTM(embedding_dim, hidden_dim)
+        self.treelstm = TreeLSTM(embedding_dim, hidden_dim, lstm_type=lstm_type)
         self.output_layer = nn.Sequential(     
             nn.Dropout(p=0.5),
             nn.Linear(hidden_dim, output_dim, bias=True)
