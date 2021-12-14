@@ -91,6 +91,8 @@ def setup_data(
 
         v.build()
         print("Vocabulary size:", len(v.w2i))
+
+        vectors = None
     else:
         print("::: Using word-embeddings to create vocabulary. :::")
         word_embeddings_txt = load_txt(pretrained_embeddings_path)
