@@ -295,6 +295,7 @@ def eval_experiment(
     ):
     """Evaluates a trained model on a test set."""
     fix_seed(seed)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     # load data
     train_data, dev_data, test_data, v, t2i, i2t, vectors = setup_data(
@@ -304,8 +305,10 @@ def eval_experiment(
 
     # load model
     model = setup_model(model_name, model_args, v=v)
+    model = model.to(device)
+    
     ckpt = torch.load(ckpt_path)
-    model.load_state_dict(ckpt["state_dict"])
+    model.load_state_dict(ckpt["state_dict"], map_location=device)
     
     # run forward pass
     results = custom_evaluate(
