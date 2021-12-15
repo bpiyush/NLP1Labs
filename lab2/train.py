@@ -162,8 +162,8 @@ def custom_evaluate(model, data, batch_fn=get_minibatch, prep_fn=prepare_minibat
         predictions = logits.argmax(dim=-1).view(-1)
 
         results["example"].extend(mb)
-        results["prediction"].append(predictions.numpy())
-        results["target"].append(targets.numpy())
+        results["prediction"].append(predictions.cpu().numpy())
+        results["target"].append(targets.cpu().numpy())
     
     results["prediction"] = np.concatenate(results["prediction"])
     results["target"] = np.concatenate(results["target"])
