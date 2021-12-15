@@ -258,7 +258,7 @@ def run_multiple_seed_experiments(expt_args, seeds=[0, 42, 420]):
     """Runs multiple experiments with different seeds."""
     best_agg_acc = defaultdict(list)
     expt_name_prefix = expt_args.get("expt_name", "")
-    expt_name_prefix += "-" if len(expt_name_prefix) == 0 else ""
+    expt_name_prefix += "" if len(expt_name_prefix) == 0 else "-"
 
     for seed in seeds:
         print(f":::::::::::::::::::::::: Seed : {seed} ::::::::::::::::::::::::")
