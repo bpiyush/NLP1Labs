@@ -307,8 +307,8 @@ def eval_experiment(
     model = setup_model(model_name, model_args, v=v)
     model = model.to(device)
     
-    ckpt = torch.load(ckpt_path)
-    model.load_state_dict(ckpt["state_dict"], map_location=device)
+    ckpt = torch.load(ckpt_path, map_location=device)
+    model.load_state_dict(ckpt["state_dict"])
     
     # run forward pass
     results = custom_evaluate(
