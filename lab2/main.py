@@ -19,6 +19,11 @@ from train import fix_seed, train_model, custom_evaluate
 
 
 def collect_all_subtrees(data, use_head_label=True):
+    """
+    Loads all subtrees from the given data (list of Examples).
+    If use_head_label is True, the head (root) label is used as supervision.
+    Else, node-wise label is used.
+    """
     data_subexamples = []
     data_idtracker = []
 
@@ -52,14 +57,25 @@ def collect_all_subtrees(data, use_head_label=True):
 
 
 def setup_data(
-    use_pretrained_embeddings,
-    pretrained_embeddings_path,
-    train_path="trees/train.txt",
-    dev_path="trees/dev.txt",
-    test_path="trees/test.txt",
-    lower=False,
-    use_subtrees=False,
-):
+        use_pretrained_embeddings,
+        pretrained_embeddings_path,
+        train_path="trees/train.txt",
+        dev_path="trees/dev.txt",
+        test_path="trees/test.txt",
+        lower=False,
+        use_subtrees=False,
+    ):
+    """Loads train, validation and test sets"""
+    
+    if not os.path.exists(train_path):
+        print(f"Training data does not exist at {train_path}")
+        print(f"Downloading data at ./trees/")
+        zip_file = "./trainDevTestTrees_PTB.zip"
+        if not os.path.exists(zip_file):
+            os.system("wget http://nlp.stanford.edu/sentiment/trainDevTestTrees_PTB.zip")
+        os.system("unzip trainDevTestTrees_PTB.zip")
+    
+    # load train data
     train_data = list(examplereader(train_path, lower=lower))
     if use_subtrees:
         print(".... Using supervision from subtrees ....")
@@ -67,10 +83,12 @@ def setup_data(
         train_data, _ = collect_all_subtrees(train_data, use_head_label=False)
         print(f"Training data size (after): {len(train_data)}")
 
+    # load dev data
     dev_data = list(examplereader(dev_path, lower=lower))
+    
+    # load test data
     test_data = list(examplereader(test_path, lower=lower))
 
-    print("::: Configuring data :::")
     print("Train: \t", len(train_data))
     print("Dev: \t", len(dev_data))
     print("Test:\t", len(test_data))
@@ -95,6 +113,12 @@ def setup_data(
         vectors = None
     else:
         print("::: Using word-embeddings to create vocabulary. :::")
+        if not os.path.exists(pretrained_embeddings_path):
+            print(f"Pretrained embeddings do not exist at {pretrained_embeddings_path}")
+            print(f"Downloading data at {pretrained_embeddings_path}")
+            os.system("wget https://gist.githubusercontent.com/bastings/4d1c346c68969b95f2c34cfbc00ba0a0/raw/76b4fefc9ef635a79d0d8002522543bc53ca2683/googlenews.word2vec.300d.txt")
+            os.system("wget wget https://gist.githubusercontent.com/bastings/b094de2813da58056a05e8e7950d4ad1/raw/3fbd3976199c2b88de2ae62afc0ecc6f15e6f7ce/glove.840B.300d.sst.txt")
+            
         word_embeddings_txt = load_txt(pretrained_embeddings_path)
         v = Vocabulary()
         vectors = []
@@ -116,6 +140,7 @@ def setup_data(
 
 
 def setup_model(model_name, model_args, v):
+    """Loads model based on given arguments."""
     add_model_args = {
         "vocab_size": len(v.w2i),
         "vocab": v,
@@ -152,52 +177,8 @@ def run_experiment(
     fix_seed(seed)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    # # 1. load data
-    # LOWER = False  # we will keep the original casing
-    # train_data = list(examplereader("trees/train.txt", lower=LOWER))
-    # dev_data = list(examplereader("trees/dev.txt", lower=LOWER))
-    # test_data = list(examplereader("trees/test.txt", lower=LOWER))
-
-    # print("::: Configuring data :::")
-    # print("Train: \t", len(train_data))
-    # print("Dev: \t", len(dev_data))
-    # print("Test:\t", len(test_data))
-
-    # # Now let's map the sentiment labels 0-4 to a more readable form
-    # i2t = ["very negative", "negative", "neutral", "positive", "very positive"]
-    # t2i = OrderedDict({p : i for p, i in zip(i2t, range(len(i2t)))})
-
-    # # 2. create vocabularies
-    # if not use_pretrained_embeddings:
-    #     print("::: Using training dataset to create vocabulary. :::")
-    #     # use the standard vocabularies constructed from the training data
-    #     v = Vocabulary()
-    #     for data_set in (train_data,):
-    #         for ex in data_set:
-    #             for token in ex.tokens:
-    #                 v.count_token(token)
-
-    #     v.build()
-    #     print("Vocabulary size:", len(v.w2i))
-    # else:
-    #     print("::: Using word-embeddings to create vocabulary. :::")
-    #     word_embeddings_txt = load_txt(pretrained_embeddings_path)
-    #     v = Vocabulary()
-    #     vectors = []
-    #     for line in word_embeddings_txt[:-1]:
-    #         token, vector = line.split(" ")[0], line.split(" ")[1:]
-    #         vector = np.array([float(y) for y in vector])
-    #         vectors.append(vector)
-    #         v.count_token(token)
-
-    #     v.build()
-    #     vectors = np.stack(vectors, axis=0)
-
-    #     # add zero-vectors for <unk> and <pad>
-    #     vectors = np.concatenate([np.zeros((2, 300)), vectors], axis=0)
-
-    #     print("Vocabulary size:", len(v.w2i), "\t Vectors shape: ", vectors.shape)
-
+    # 1. load data
+    print("::: Configuring data :::")
     train_data, dev_data, test_data, v, t2i, i2t, vectors = setup_data(
         use_pretrained_embeddings=use_pretrained_embeddings,
         pretrained_embeddings_path=pretrained_embeddings_path,
@@ -205,11 +186,6 @@ def run_experiment(
     )    
     
     print("::: Configuring model :::")
-    # add_model_args = {
-    #     "vocab_size": len(v.w2i),
-    #     "vocab": v,
-    # }
-    # model = models.__dict__[model_name](**model_args, **add_model_args)
     model = setup_model(model_name, model_args, v)
     
     if use_pretrained_embeddings:
@@ -281,13 +257,15 @@ def run_experiment(
 def run_multiple_seed_experiments(expt_args, seeds=[0, 42, 420]):
     """Runs multiple experiments with different seeds."""
     best_agg_acc = defaultdict(list)
-    expt_name_prefix = expt_args["expt_name"]
+    expt_name_prefix = expt_args.get("expt_name", "")
+    expt_name_prefix += "-" * len(expt_name_prefix)
+
     for seed in seeds:
         print(f":::::::::::::::::::::::: Seed : {seed} ::::::::::::::::::::::::")
         expt_args.update(
             {
                 "seed": seed,
-                "expt_name": f"{expt_name_prefix}-{expt_args['model_name']}_seed_{seed}",
+                "expt_name": f"{expt_name_prefix}{expt_args['model_name']}_seed_{seed}",
             },
         )
         _, _, best_model_acc = run_experiment(**expt_args)
@@ -319,7 +297,7 @@ def eval_experiment(
     fix_seed(seed)
 
     # load data
-    train_data, dev_data, test_data, v, t2i, i2t = setup_data(
+    train_data, dev_data, test_data, v, t2i, i2t, vectors = setup_data(
         use_pretrained_embeddings=use_pretrained_embeddings,
         pretrained_embeddings_path=pretrained_embeddings_path,
     )

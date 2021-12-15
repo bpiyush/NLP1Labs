@@ -97,7 +97,7 @@ def plot_multiple_categorical_histogram(
 
 def plot_single_sequence(
         x, y, plot_label, x_label="Iterations", y_label="Loss", title=None,
-        marker="--o", save=True, save_path="./results/sample.png", show=True,
+        marker="--o", save=False, save_path="./results/sample.png", show=True,
     ):
     """Plots sequences y1 and y1 vs x."""
     fig, ax = plt.subplots(1, 1, figsize=(10, 5))
